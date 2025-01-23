@@ -1,10 +1,10 @@
 import environ
 import os
 from pathlib import Path
-import corsheaders
 from django.contrib import staticfiles
 import chatapi
 import custom_auth
+import corsheaders
 
 env = environ.Env(
     DEBUG=(bool, False)
@@ -16,34 +16,34 @@ environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
 
 SECRET_KEY = env('SECRET_KEY')
 
-
 ALLOWED_HOSTS = [
-    'localhost',
+    'diverse-data.com',
+    'www.diverse-data.com',
     '127.0.0.1',
-    'http://localhost:7861/',
-    'testserver',
-    'http://localhost:7000/',
+    'localhost',
+    'diverseai.ca',
+    'www.diverseai.ca'
 ]
 
 INSTALLED_APPS = [
-    "custom_auth",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.sites",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "rest_framework",
-    "django.contrib.staticfiles",
-    # "diverseai.apps.DiverseaiConfig",
     "corsheaders",
+    "rest_framework",
+    "rest_framework_simplejwt",
+    "django.contrib.staticfiles",
+    "custom_auth",
     "chatapi",
 ]
 
 MIDDLEWARE = [
+    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -86,9 +86,11 @@ DATABASES = {
     }
 }
 
-
-
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = False  # Set to False for security
+CORS_ALLOWED_ORIGINS = [
+    "https://www.diverseai.ca",
+    "https://diverseai.ca",
+]
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -101,8 +103,12 @@ CORS_ALLOW_METHODS = [
 ]
 
 CORS_ALLOWED_HEADERS = [
-    '*',
+    'authorization',
+    'content-type',
+    'x-csrftoken',
 ]
+
+CORS_ALLOW_CREDENTIALS = True
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -119,11 +125,21 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    'DEFAULT_PERMISSION_CLASSES': (
+        'rest_framework.permissions.IsAuthenticated',
+    ),
+}
+
+
 DEBUG = True
 
 AUTH_USER_MODEL = 'custom_auth.CustomUser'
 
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_ROOT = '/var/www/backend/static/'
 
 LANGUAGE_CODE = "en-us"
 
@@ -136,7 +152,15 @@ USE_I18N = True
 USE_TZ = True
 
 STATIC_URL = '/static/'
+
 STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'static'),
+    os.path.join(BASE_DIR, 'static/'),    
 ]
 
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+SECURE_SSL_REDIRECT = True
+SESSION_COOKIE_SECURE = True
+CSRF_COOKIE_SECURE = True
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'

@@ -5,13 +5,11 @@ from django.contrib import admin
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-<<<<<<< HEAD
     path('chatapi/', include('chatapi.urls')),
     path('auth/', include('custom_auth.urls')),
-=======
     path('api/', include('chatapi.urls')),
->>>>>>> 08baa90 (Initialized a new postgres database)
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATICFILES_DIRS[0])
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

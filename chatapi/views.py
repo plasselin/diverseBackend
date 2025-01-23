@@ -1,4 +1,3 @@
-# views.py
 import os
 import openai
 from django.http import JsonResponse
@@ -34,10 +33,16 @@ def chat_completion(request):
             # Extract values from the request body
             user_message = data.get('message', {}).get('text', '')
             is_voice_enabled = data.get('message', {}).get('isVoiceEnabled', False)
-            temperature = data.get('message', {}).get('temperature', 0.5)  # Default temperature
-            model = data.get('message', {}).get('model', 'gpt-4')  # Default to 'gpt-4'
-            message_index = data.get('message', {}).get('index', int(time.time()))  # Use message index or timestamp
-            logging.debug(f"User message: {user_message}, Voice enabled: {is_voice_enabled}, Message index: {message_index}, Temperature: {temperature}, Model: {model}")
+            temperature = data.get('message', {}).get('temperature', 0.5)
+            model = data.get('message', {}).get('model', 'gpt-4')
+            message_index = data.get('message', {}).get('index', int(time.time()))
+
+            logging.debug(
+                f"User message: {user_message}, "
+                f"Voice enabled: {is_voice_enabled}, "
+                f"Message index: {message_index}, "
+                f"Temperature: {temperature}"
+            )
 
             if not user_message:
                 logging.error("User message is empty")
@@ -46,12 +51,12 @@ def chat_completion(request):
             # Call OpenAI GPT completion with the provided model and temperature
             max_tokens = 100 if is_voice_enabled else None
             response = client.chat.completions.create(
-                model=model,  # Use the dynamic model from the request
+                model=model,
                 messages=[
                     {"role": "system", "content": "You are a helpful assistant."},
                     {"role": "user", "content": user_message}
                 ],
-                temperature=temperature,  # Use the dynamic temperature from the request
+                temperature=temperature,
                 max_tokens=max_tokens
             )
 
@@ -62,34 +67,34 @@ def chat_completion(request):
             # If voice is enabled, generate TTS audio and send both text and audio
             if is_voice_enabled:
                 tts_response = client.audio.speech.create(
-                    model="tts-1",  # Fixed model for TTS
+                    model="tts-1",
                     voice="alloy",
                     input=assistant_response
                 )
 
-                # Save the TTS audio file
-                audio_dir = os.path.join(settings.BASE_DIR, 'static', 'audio')
-                if not os.path.exists(audio_dir):
-                    os.makedirs(audio_dir)
-
-                audio_file_path = f"static/audio/output_{message_index}.mp3"
+                # Save the TTS audio file directly to MEDIA_ROOT
+                audio_file_path = os.path.join(settings.MEDIA_ROOT, f"output_{message_index}.mp3")
                 tts_response.stream_to_file(audio_file_path)
 
                 # Clean up old audio files (keep only the latest 10)
                 audio_files = sorted(
-                    [f for f in os.listdir(audio_dir) if f.endswith('.mp3')],
-                    key=lambda x: os.path.getmtime(os.path.join(audio_dir, x))
+                    [f for f in os.listdir(settings.MEDIA_ROOT) if f.endswith('.mp3')],
+                    key=lambda x: os.path.getmtime(os.path.join(settings.MEDIA_ROOT, x))
                 )
                 if len(audio_files) > 10:
                     files_to_delete = audio_files[:-10]
                     for file_name in files_to_delete:
-                        file_path = os.path.join(audio_dir, file_name)
+                        file_path = os.path.join(settings.MEDIA_ROOT, file_name)
                         os.remove(file_path)
                         logging.debug(f"Deleted old audio file: {file_path}")
 
                 logging.debug(f"OpenAI TTS response saved to {audio_file_path}")
 
-                audio_file_absolute_url = request.build_absolute_uri(f'/static/audio/output_{message_index}.mp3')
+                # Use MEDIA_URL for file access
+                audio_file_absolute_url = request.build_absolute_uri(f'{settings.MEDIA_URL}output_{message_index}.mp3')
+                if audio_file_absolute_url.startswith('http://'):
+                    audio_file_absolute_url = audio_file_absolute_url.replace('http://', 'https://')
+
                 return JsonResponse({
                     'text': assistant_response,
                     'audio_file': audio_file_absolute_url,
@@ -108,40 +113,32 @@ def chat_completion(request):
     return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
 
 
-
 @csrf_exempt
 def transcribe_audio(request):
     if request.method == 'POST':
         try:
-            # Print request data for debugging purposes
-            print(f"Request POST data: {request.POST}")
-            print(f"Request FILES: {request.FILES}")
+            logging.debug(f"Request POST data: {request.POST}")
+            logging.debug(f"Request FILES: {request.FILES}")
 
             # Get the audio file from the request
             audio_file = request.FILES.get('file')
 
             if not audio_file:
-                print("No audio file provided")
+                logging.error("No audio file provided")
                 return JsonResponse({'error': 'No audio file provided'}, status=400)
 
-            # Print file details for debugging
-            print(f"Audio file: {audio_file.name}, size: {audio_file.size}")
+            logging.debug(f"Audio file: {audio_file.name}, size: {audio_file.size}")
 
-            # Define the path where the file will be saved
-            audio_dir = os.path.join(settings.BASE_DIR, 'static', 'audio')
-            if not os.path.exists(audio_dir):
-                os.makedirs(audio_dir)
-
-            # Create a unique filename for the input file
+            # Save the file directly to MEDIA_ROOT
             file_name = f"input_{audio_file.name}"
-            file_path = os.path.join(audio_dir, file_name)
+            file_path = os.path.join(settings.MEDIA_ROOT, file_name)
 
-            # Save the file to the audio folder
+            # Save the file
             with open(file_path, 'wb+') as destination:
                 for chunk in audio_file.chunks():
                     destination.write(chunk)
 
-            print(f"File saved at: {file_path}")
+            logging.debug(f"File saved at: {file_path}")
 
             # Open the saved file and send it to the OpenAI Whisper API
             with open(file_path, 'rb') as stored_audio_file:
@@ -150,22 +147,18 @@ def transcribe_audio(request):
                     file=stored_audio_file
                 )
 
-            # Access the 'text' property from the transcript object
-            transcription_text = transcript.text
+                transcription_text = transcript.text
 
-            # Print transcription result for debugging
-            print(f"Transcription result: {transcription_text}")
+                logging.debug(f"Transcription result: {transcription_text}")
 
-            # Return the transcribed text and set sender to 'user'
-            return JsonResponse({
-                'text': transcription_text,
-                'sender': 'user'
-            })
+                return JsonResponse({
+                    'text': transcription_text,
+                    'sender': 'user'
+                })
 
         except Exception as e:
-            # Print the error and stack trace to the console
-            print(f"Error during transcription: {str(e)}")
-            print(traceback.format_exc())
+            logging.error(f"Error during transcription: {str(e)}")
+            logging.error(traceback.format_exc())
             return JsonResponse({'error': str(e)}, status=500)
 
     return JsonResponse({'error': 'Only POST method is allowed'}, status=405)
